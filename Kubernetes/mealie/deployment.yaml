@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: mealie-app
+  name: mealie-app
+  namespace: mealie
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mealie-app
+  template:
+    metadata:
+      labels:
+        app: mealie-app
+    spec:
+      containers:
+      - image: ghcr.io/mealie-recipes/mealie:v1.2.0 ##use github instead of docker hub
+        name: mealie
+        ports:
+        - containerPort: 9000

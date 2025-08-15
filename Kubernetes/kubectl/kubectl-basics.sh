@@ -22,6 +22,9 @@
 ## Start hello-world kontti
     kubectl run hello-world --image=hello-world --restart=Never
 
+## Start pod in specific namespace
+    k run jouni-mealie --image=nginx -n=mealie
+
 ## Check kontti
     kubectl get pods
 

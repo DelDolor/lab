@@ -10,6 +10,11 @@ k create namespace mealie -o yaml --dry-run=client > mealie/namespace.yaml
 ## deploy the namespace from yaml file
 k apply -f mealie/namespace.yaml
 
+#start pod in namespace manually
+k run jouni-mealie --image=nginx -n=mealie
+
+# set namespace to default
+k config set-context --current --namespace=mealie
 
 # List all namespaces
 kubectl get namespaces
