@@ -1,10 +1,15 @@
 #every application should run in its own namespace, so that you can easily manage and isolate them. You can create a namespace using kubectl create namespace <namespace-name> command.
 #!/bin/bash
 
-# Create a namespace
+# Create a namespace manually
 kubectl create namespace mealie
+
 ## Create a namespace yaml file
-k create namespace mealie -o yaml --dry-run=client > manifests/mealie-ns.yaml
+k create namespace mealie -o yaml --dry-run=client > mealie/namespace.yaml
+
+## deploy the namespace from yaml file
+k apply -f mealie/namespace.yaml
+
 
 # List all namespaces
 kubectl get namespaces
@@ -12,7 +17,7 @@ kubectl get namespaces
 # Get details of a specific namespace
 kubectl describe namespace my-namespace
 
-# Delete a namespace
+# Delete a namespace and all its resources
 kubectl delete namespace my-namespace
 
 # Switch to a different namespace
