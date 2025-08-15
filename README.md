@@ -1,2 +1,3 @@
 # lab
-Collection of my labs, projects, scripts and all the experiments which I use for learning, exploring, and gaining hands-on experience. This is where the learning happens!
+A public sandbox of my personal code experiments — mostly random scripts and notes — built for my own needs but free for anyone to explore and use.
+

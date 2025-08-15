@@ -4,9 +4,11 @@
 ## Usefull kubectl commands
     kubectl get namespaces
     kubectl get pods -A
+    kubectl get pods -o wide
     kubectl get pod <pod name> -o yaml
     kubectl edit pod <pod name>
     kubectl descripe pods <pod name>
+    kubectl delete pod <pod name>
     kubectl cluster-info
     kubectl config view
     kubectl get events

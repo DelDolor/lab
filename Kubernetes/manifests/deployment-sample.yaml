@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: httpd-depl-templ
+  name: httpd-depl-templ
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: httpd-depl-templ
+  template:
+    metadata:
+      labels:
+        app: httpd-depl-templ
+    spec:
+      containers:
+      - image: httpd:2.4.64-bookworm
+        name: httpd
+        resources: {}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+status: {}
