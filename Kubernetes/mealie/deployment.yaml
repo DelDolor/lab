@@ -16,7 +16,7 @@ spec:
         app: mealie-app
     spec:
       containers:
-      - image: ghcr.io/mealie-recipes/mealie:v1.2.0 ##use github instead of docker hub
+      - image: ghcr.io/mealie-recipes/mealie:v3.0.2 ##use github instead of docker hub
         name: mealie
         ports:
         - containerPort: 9000

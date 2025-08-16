@@ -1,3 +1,7 @@
+# fast way to get temporary linux machine
+docker run -it ubuntu
+
+
 ## Create simple docker container and push it to GCR
     nano server.js
 

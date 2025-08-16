@@ -1,6 +1,9 @@
 #every application should run in its own namespace, so that you can easily manage and isolate them. You can create a namespace using kubectl create namespace <namespace-name> command.
 #!/bin/bash
 
+# check your current context and namespace
+k config get-contexts #* means current context
+
 # Create a namespace manually
 kubectl create namespace mealie
 

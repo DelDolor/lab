@@ -1,4 +1,6 @@
-# Connect to cluster
+# check your current context and namespace
+k config get-contexts #* means current context
+
 ## profile config
 Lives in ~/.kube/config
 
