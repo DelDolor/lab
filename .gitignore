@@ -1,6 +1,9 @@
 # local secrets
 config.cfg
 
+# Private items
+*nosync*
+
 
 ### TERRAFORM IGNORE FILE ###
 # Local .terraform directories
