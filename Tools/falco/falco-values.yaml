@@ -1,0 +1,46 @@
+driver:
+  kind: ebpf
+
+rbac:
+  create: true
+
+k8sMetacollector:
+  enabled: true
+
+falco:
+  jsonOutput: true
+  jsonIncludeOutputProperty: true
+
+  rules_files:
+    - /etc/falco/falco_rules.yaml
+    - /etc/falco/falco_rules.local.yaml
+    - /etc/falco/rules.d/custom_dm_rules.yaml
+
+  customRules:
+    custom_dm_rules.yaml: |
+      - list: dm_namespaces
+        items: [dm]
+
+      - rule: DM - Sensitive file read in container
+        desc: Detect reading sensitive files only in dm namespace
+        condition: >
+          open_read and container and
+          (fd.name=/etc/shadow or fd.name startswith /etc/ssh) and
+          k8s.ns.name in (dm_namespaces)
+        output: >
+          Falco DM alert: Sensitive file read
+          (user=%user.name proc=%proc.name pod=%k8s.pod.name ns=%k8s.ns.name file=%fd.name)
+        priority: WARNING
+        tags: [dm, filesystem]
+
+falcosidekick:
+  enabled: true
+  config:
+    otlp:
+      logs:
+        enabled: true
+        endpoint: "http://otel-kube-stack-daemon-collector.otel-system:4318/v1/logs"
+      traces:
+        enabled: true
+        endpoint: "http://otel-kube-stack-daemon-collector.otel-system:4318/v1/traces"
+

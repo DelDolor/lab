@@ -1,0 +1,34 @@
+# Create Calico rule that: 
+# - Allow traffic inbound from the "web" pod(s) in the dm namespace.
+# - Deny inbound traffic from all other namespaces in the cluster.
+# - Allow inbound traffic from the API Gateway, including health checks
+# - Log and deny all other incoming traffic
+
+# Calico Network Policy for DM API / AWS
+---
+apiVersion: crd.projectcalico.org/v1
+kind: NetworkPolicy
+metadata:
+  name: api-ingress
+  namespace: dm
+spec:
+  selector: app == 'api' # (1)
+  ingress:
+    - action: Allow # (2)
+      source: 
+        selector: app starts with 'web'
+      protocol: TCP
+      destination: { ports: [8888] }
+    - action: Deny # (3)
+      source:
+        namespaceSelector: projectcalico.org/name != 'dm'
+    - action: Allow # (4)
+      source:
+        nets:
+          - 10.103.128.0/19 # Private Subnet summary
+      protocol: TCP
+      destination: { ports: [8888] }
+    - action: Log # (5)
+    - action: Deny
+  types:
+    - Ingress

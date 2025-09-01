@@ -1,6 +1,6 @@
 # local secrets
 config.cfg
-
+tmp/
 
 ### TERRAFORM IGNORE FILE ###
 # Local .terraform directories

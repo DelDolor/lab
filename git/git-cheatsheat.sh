@@ -7,6 +7,13 @@ git add .
 git commit -m "deployment experiments"
 git push
 
+#### main branch is protected
+git checkout -b feature/readme
+git push origin feature/readme
+# -- merge request & approval in gitlabissa
+git checkout main
+git pull origin main
+###
 
 # DelDemo - Gitin käyttö selkosuomeksi
 ## Peruskäyttö
@@ -21,7 +28,7 @@ git checkout main #vaihtaa branchin
 git checkout -b uusibranchi  
 git push origin uusibranchi  #tämä komento puskee tuon paikallisen haaran githubiin  
 git status 
-git log 
+git log -1
 
 ### Ympäristön konfigurointi
 git config --global user.name "Etunimi Sukunimi"   

@@ -5,4 +5,7 @@ k config get-contexts #* means current context
 Lives in ~/.kube/config
 
 ## Change context/profile
-    kubectl config use-context rancher-desktop
+kubectl config use-context rancher-desktop
+
+# Check who you are
+kubectl auth whoami --context aws

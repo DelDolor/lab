@@ -15,5 +15,13 @@ k port-forward -n <namespace> pods/<podaname> <port>
 # connect to host node (rancher desktop rdctl shell bash)
 ls /etc/cni/net.d/
 
+# List the built-in Kubernetes network policies in all namespaces. 
+kubectl get networkpolicies.networking.k8s.io -A
+
+# List calicos network policies (if used)
+kubectl --context aws get networkpolicies.crd.projectcalico.org -A
+
+# List calicos global policies
+kubectl --context aws get globalnetworkpolicies.crd.projectcalico.org
 
 

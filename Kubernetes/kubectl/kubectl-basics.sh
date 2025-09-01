@@ -15,6 +15,12 @@
     kubectl get logs <pod name>
     kubectl get services
 
+# Auth and privileges
+    kubectl can-i --list
+    kubectl auth can-i get pods -n <namespace>
+    kubectl auth can-i get secrets -n <namespace>
+    kubectl get secrets -n <namespace>
+
 ## View status of your installation
     sudo k8s status
 

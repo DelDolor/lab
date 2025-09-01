@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: secret-app
+  labels:
+    app: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      nodeSelector:
+        kubernetes.io/os: linux
+      containers:
+      - name: api
+        image: "{IMAGE_NAME}"
+        ports:
+          - containerPort: 44300
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: MYSQL_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mysql-credentials
+                key: password
+          - name: MYSQL_DATABASE
+            valueFrom:
+              secretKeyRef:
+                name: mysql-credentials
+                key: database
+          - name: MYSQL_USER
+            valueFrom:
+              secretKeyRef:
+                name: mysql-credentials
+                key: username
+          - name: CUSTOMCONNSTR_DefaultConnection
+            value: "Server=mysql.secret-app;database=$(MYSQL_DATABASE);uid=$(MYSQL_USER);pwd=$(MYSQL_PASSWORD)"
