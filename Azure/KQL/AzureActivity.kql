@@ -1,0 +1,42 @@
+AzureActivity
+| where Category == "Administrative" or CategoryValue == "Administrative"
+| where isnotempty(OperationNameValue)
+| extend role_ = tostring(parse_json(tostring(Authorization_d.evidence)).role)
+| extend principalType_ = tostring(parse_json(tostring(Authorization_d.evidence)).principalType)
+| where ActivityStatusValue == "Success"
+| project TimeGenerated, principalType_, Caller, role_,  OperationNameValue, _ResourceId
+
+
+
+// Muuta aikajännettä tarvittaessa
+let lookback = 30d;
+// Muokkausoperaatiot = ei read
+let modify_suffixes = dynamic(["/write", "/delete", "/action"]);
+AzureActivity
+| where TimeGenerated >= ago(lookback)
+| where Category == "Administrative" or CategoryValue == "Administrative"
+| where isnotempty(OperationNameValue)
+| where ActivityStatusValue == "Success"
+// Vain write/delete/action
+| extend OpLower = tolower(OperationNameValue)
+| where array_index_of(modify_suffixes, strcat("/", tostring(extract(@"([^/]+)$", 1, OpLower)))) >= 0
+// Poimi principal-tyyppi + SP-tunnisteet
+| extend principalType_ = tostring(parse_json(tostring(Authorization_d.evidence)).principalType)
+| extend ClaimsJson = parse_json(Claims)
+| extend AppId = tostring(ClaimsJson.appid)
+// Normalisoi kolmeen koriin (SP, Group, User)
+| extend PrincipalClass = case(
+    principalType_ =~ "ServicePrincipal" or isnotempty(AppId), "Service principal",
+    principalType_ =~ "Group",                                    "Group",
+    principalType_ =~ "User" or Caller has "@",                   "User",
+    "Other"
+)
+// Laske päivittäiset määrät ja muodosta kolme sarjaa
+| summarize
+    SP    = countif(PrincipalClass == "Service principal"),
+    Group = countif(PrincipalClass == "Group"),
+    User  = countif(PrincipalClass == "User")
+  by bin(TimeGenerated, 1d)
+// (valinnainen) jos haluat piilottaa tyhjät päivät kokonaan, poista tämä rivi
+| order by TimeGenerated asc
+| render timechart
