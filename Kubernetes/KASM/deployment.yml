@@ -1,0 +1,21 @@
+# values.yaml — Kasm (single-zone)
+global:
+  hostname: kasm.localdev        # vaihda halutuksi FQDN:ksi
+  # clusterDomain: cluster.local  # yleensä ei tarvitse muuttaa
+
+# (valinnainen) automaattiset admin-salasanat luodaan jos ei aseteta itse.
+# admin:
+#   username: admin
+#   password: "VAIHDA_TÄHÄN_TURVALLINEN_SALASANA"
+
+# (valinnainen) tietokanta pysyvyyttä varten
+postgresql:
+  persistence:
+    enabled: false  # RD-testissä voi olla false; tuotantoon true + storageclass
+
+# (valinnainen) Proxy/Guac ulospääsyyn, jätä oletukset
+proxy:
+  service:
+    type: ClusterIP
+
+# (RD:lle helppo testaus: käytä port-forwardia service/kasm-proxy → 443)

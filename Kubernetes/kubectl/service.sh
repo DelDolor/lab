@@ -14,5 +14,7 @@ k expose deployment <deployment-name> --port=<port>
 # Note: LoadBalancer type requires a cloud provider or a local setup that supports it (like Rancher Desktop)
 k edit svc <service-name> # change type to LoadBalancer or use kubectl patch  
 
+# create service yaml file from existing service
+k get service <service-name> -o yaml > git-path/<service-name>/service.yaml
 
 
