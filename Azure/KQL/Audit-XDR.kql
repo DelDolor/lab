@@ -1,0 +1,69 @@
+// https://www.linkedin.com/posts/bert-janpals_audit-defender-xdr-activities-activity-7366518616957091841-Te6E?utm_source=share&utm_medium=member_desktop&rcm=ACoAAACs2hwBJMlqvkw3JpJhBRUI0q21ETH0roc
+
+// Audit Unified XDR Activities
+// With the consolidation of tools into the Unified XDR portal and the addition of new features, such as Sentinel data lake, it becomes more important to monitor changes across your security tools properly. Changes in the RBAC, disabling Advanced Features, removing connected Sentinel workspaces, as well as disabling detections or downloading offboarding packages, are all logged. These events are stored in the Defender For Cloud Apps CloudAppEvents table.
+
+// Key use cases to alert on:
+// 1. Advanced Feature Disabled: https://lnkd.in/exdjhcs6
+// 2. MDE Offboarding Package Downloaded: https://lnkd.in/eihYfJvR
+// 3. Unified RBAC Changes: https://lnkd.in/eStuuhF7
+// 4. Sentinel Workspace Disconnected: https://lnkd.in/e4xeegT6
+// 5. Live Response File Collection: https://lnkd.in/e23mpf8Y
+// More use cases are available on GitHub: https://lnkd.in/gJnRjf_T
+
+// You can identify the logged ActionTypes in your tenant by using the hashtag#KQL query below:
+
+CloudAppEvents
+| extend WorkLoad = tostring(parse_json(RawEventData).Workload)
+| where WorkLoad contains "Defender" or WorkLoad contains 'Sentinel' or WorkLoad in~ ('SecurityComplianceCenter', 'ThreatIntelligence')
+| distinct ActionType
+
+
+CloudAppEvents
+| extend WorkLoad = tostring(parse_json(RawEventData).Workload)
+| where WorkLoad contains "Defender" or WorkLoad contains 'Sentinel' or WorkLoad in~ ('SecurityComplianceCenter', 'ThreatIntelligence')
+| where ActionType == "SetAdvancedFeatures"
+| extend RawEventData_SettingName = parse_json(RawEventData)["SettingName"]
+| extend RawEventData_SettingsNewValue = parse_json(RawEventData)["SettingsNewValue"]
+| project-reorder Timestamp, AccountDisplayName, RawEventData_SettingName, RawEventData_SettingsNewValue
+
+// All Unified Audit Log Entries are documented per application (such as Defender For Endpoint, Defender For Identity, Sentinel data lake): https://lnkd.in/eYS2yamf
+// The CloudAppEvents table does log a lot more (but not all 😉) of the Unified Audit Logs, interested to know which ones? Have a look at this blog: https://lnkd.in/eBFuAxug
+//More details on enabling the audit logs are described in this blog: https://lnkd.in/gpJxs7Fp
+
+// CUSTOM QUERIES FOR DEDICATED PURPOSES
+// List all changes that modifies advanced features
+CloudAppEvents
+| extend WorkLoad = tostring(parse_json(RawEventData).Workload)
+| where WorkLoad contains "Defender" or WorkLoad contains 'Sentinel' or WorkLoad in~ ('SecurityComplianceCenter', 'ThreatIntelligence')
+| where ActionType == "SetAdvancedFeatures"
+| extend RawEventData_SettingName = parse_json(RawEventData)["SettingName"]
+| extend RawEventData_SettingsNewValue = parse_json(RawEventData)["SettingsNewValue"]
+| project-reorder Timestamp, AccountDisplayName, RawEventData_SettingName, RawEventData_SettingsNewValue
+
+// Alert if someone turns preview features on
+CloudAppEvents
+| extend RawEventData_Workload = parse_json(RawEventData)["Workload"]
+| extend RawEventData_SettingName = parse_json(RawEventData)["SettingName"]
+| extend RawEventData_SettingsNewValue = parse_json(RawEventData)["SettingsNewValue"]
+| where RawEventData_SettingName contains "Preview features"
+| where RawEventData_SettingsNewValue != "False"
+| project-reorder Timestamp, AccountDisplayName, RawEventData_SettingName, RawEventData_SettingsNewValue
+
+// Someone enabled live response capability to servers. Connections can be made now.
+CloudAppEvents
+| extend RawEventData_Workload = parse_json(RawEventData)["Workload"]
+| extend RawEventData_SettingName = parse_json(RawEventData)["SettingName"]
+| extend RawEventData_SettingsNewValue = parse_json(RawEventData)["SettingsNewValue"]
+| where RawEventData_SettingName contains "Live Response for Servers"
+| where RawEventData_SettingsNewValue == "True"
+| project-reorder Timestamp, AccountDisplayName, RawEventData_SettingName, RawEventData_SettingsNewValue
+
+// ALERT: Someone disabled live response capability to servers.
+CloudAppEvents
+| extend RawEventData_Workload = parse_json(RawEventData)["Workload"]
+| extend RawEventData_SettingName = parse_json(RawEventData)["SettingName"]
+| extend RawEventData_SettingsNewValue = parse_json(RawEventData)["SettingsNewValue"]
+| where RawEventData_SettingName contains "Live Response for Servers"
+| where RawEventData_SettingsNewValue == "False"
+| project-reorder Timestamp, AccountDisplayName, RawEventData_SettingName, RawEventData_SettingsNewValue

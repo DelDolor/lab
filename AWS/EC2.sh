@@ -3,6 +3,10 @@
 #Describe known running instance
 aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" "Name=tag:Name,Values=<ec2-instance-name>"
 
+#Descripe known stopped instance
+aws ec2 describe-instances --filters "Name=instance-state-name,Values=stopped" "Name=tag:Name,Values=<ec2-instance-name>" --profile <profname>
+
+
 # Grep ID
 aws ec2 describe-instances --filters "Name=instance-state-name,Values=running" "Name=tag:Name,Values=<ec2-instance-name>" | grep InstanceId
 

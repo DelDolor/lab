@@ -1,0 +1,72 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/5c8c79c1-9759-4f36-adab-4f6059407a42')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/5c8c79c1-9759-4f36-adab-4f6059407a42')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "XDR Preview feature enabled",
+                "description": "Joku on aktivoinut yhden tai useamman preview-featuren. Preview ominaisuuksien käyttö tuotannossa ei ole sallittua.",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "CloudAppEvents\r\n| extend RawEventData_Workload = parse_json(RawEventData)[\"Workload\"]\r\n| extend RawEventData_SettingName = parse_json(RawEventData)[\"SettingName\"]\r\n| extend RawEventData_SettingsNewValue = parse_json(RawEventData)[\"SettingsNewValue\"]\r\n| where RawEventData_SettingName contains \"Preview features\"\r\n| where RawEventData_SettingsNewValue != \"False\"\r\n| project-reorder Timestamp, AccountDisplayName, RawEventData_SettingName, RawEventData_SettingsNewValue",
+                "queryFrequency": "PT5M",
+                "queryPeriod": "PT5M",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "DefenseEvasion"
+                ],
+                "techniques": [
+                    "T1562"
+                ],
+                "subTechniques": [
+                    "T1562.001"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": false,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "AadUserId",
+                                "columnName": "AccountId"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        }
+    ]
+}
