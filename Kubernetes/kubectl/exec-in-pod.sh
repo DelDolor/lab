@@ -4,6 +4,9 @@
 
 kubectl exec -it <pod-name> -- /bin/bash
 
+# If pod has several containers, specify the container name using -c option
+kubectl exec -it <pod-name> -c <container-name> -- /bin/bash
+
 # or if you want to run a specific command, for example, to check the contents of a file:
 kubectl exec -it <pod-name> -- cat /path/to/file
 
