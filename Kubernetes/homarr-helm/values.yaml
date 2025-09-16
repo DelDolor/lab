@@ -1,0 +1,3 @@
+env:
+  # -- Your local time zone
+  TZ: "Europe/Paris"
