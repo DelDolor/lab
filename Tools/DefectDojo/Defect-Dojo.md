@@ -42,7 +42,7 @@ Further points are then deducted from the grade for each additional finding base
     - Medium: 2
     - Low: 1
 
-### Read products grad from DD API (API Key from Vault)
+### Read products grade from DD API (API Key from Vault)
 ```
 export DEFECTDOJO_API_KEY=$(vault kv get -field=token kv/dm/tokens/defect-dojo)
 curl -sL "https://dojo.xxx.labs/api/v2/products/?name=applications/dm-api" --header "Content-Type: application/json" --header "Authorization: Token $DEFECTDOJO_API_KEY" | jq '.results[]'
