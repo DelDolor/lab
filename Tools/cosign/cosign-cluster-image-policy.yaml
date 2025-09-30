@@ -1,0 +1,36 @@
+# export COSIGN_API_PUB_KEY=$(cosign public-key --key "hashivault://xxx" 2>/dev/null)
+# gomplate -f ./cosign-cluster-image-policy.yaml.tmpl
+---
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: trust-signed-xxx-images
+spec:
+  # Optional policy section can hold policy code written in CUE or Rego which can be applied to successfully validated authorities
+  #policy: ...
+  # can be specified to define how policy failures are handled. here is warn, but the default is enforce.
+  mode: warn
+  #array of glob patterns which match the images to which this policy will apply
+  images:
+    - glob: "*.dkr.ecr.*.amazonaws.com/xxx**"
+    - glob: "*.dkr.ecr.*.amazonaws.com/public**"
+    - glob: "xxx*.azurecr.io/xxx/**"
+    - glob: "xxx*.azurecr.io/public/**"
+  # array of signature authorities which may have signed the image(s) in scope for this policy
+  authorities:
+    - key:
+        data: |
+{{ .Env.COSIGN_API_PUB_KEY | indent 10 }}
+        hashAlgorithm: sha256
+---
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: trust-csp-cli-images
+spec:
+  images:
+    - glob: "public.ecr.aws/aws-cli/**"
+    - glob: "mcr.microsoft.com/azure-cli**"
+  authorities:
+    - static:
+        action: pass
