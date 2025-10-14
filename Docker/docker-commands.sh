@@ -1,3 +1,6 @@
+docker ps
+docker image ls
+
 # fast way to get temporary linux machine
 docker run -it ubuntu
 
