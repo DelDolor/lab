@@ -1,24 +1,21 @@
-# check if there is secrets laying around
-kubectl exec -it <pod-name> -- /bin/bash
-env | grep 'AZURE_'
+# Login to cluster
+### Get Credentials
+AKS_CLUSTER_NAME=$(vault kv get -field=aks_name kv/az/deployment/metadata)
+AKS_RESOURCE_GROUP_NAME=$(vault kv get -field=aks_resource_group kv/az/deployment/metadata)
+az aks get-credentials -g "${AKS_RESOURCE_GROUP_NAME}" -n "${AKS_CLUSTER_NAME}" --context az
 
-# and same secrets that are stored into ENV can be seen from pod description
-DM_WEB_POD=$(kubectl --context az get pods -o json -n dm -l "app=web" | jq -r '.items[0].metadata.name')
-kubectl --context az get pod -n dm -o json $DM_WEB_POD | jq '.spec.containers[].env[]'
+### bash shortcut
+#### Store in ~/.bashrc.extensions file¨
+dm-k8s-login-az() {
+  AKS_CLUSTER_NAME=$(vault kv get -field=aks_name kv/az/deployment/metadata)
+  AKS_RESOURCE_GROUP_NAME=$(vault kv get -field=aks_resource_group kv/az/deployment/metadata)
+  az aks get-credentials -g "${AKS_RESOURCE_GROUP_NAME}" -n "${AKS_CLUSTER_NAME}" --context az --overwrite-existing
+  kubelogin convert-kubeconfig -l azurecli
+}
 
-#################################################
-# and if you use pod identity (entra sp), you can see the token file inside the pod
-cat /var/run/secrets/azure/tokens/azure-identity-token ; echo
+#### and login using:
+dm-k8s-login-az
 
-jwt-decode "PASTE THE TOKEN HERE"
+# view the Entra ID profile details
+az aks list --only-show-errors | jq '.[].aadProfile'
 
-## The short-lived identity tokens are valid for 60 minutes
-date -d @ENTER_YOUR_IAT_VALUE_HERE
-date -d @ENTER_YOUR_EXP_VALUE_HERE
-##  If the token is stolen from the pod, an attacker will only have access to the Azure tenant for 60 minutes.
-
-## Verify from Entra point of view
-DM_WEB_SERVICE_PRINCIPAL_CLIENT_ID=$(vault kv get -field=dm_web_service_principal_client_id kv/az/deployment/metadata)
-az ad app federated-credential list --id $DM_WEB_SERVICE_PRINCIPAL_CLIENT_ID
-
-#################################################
