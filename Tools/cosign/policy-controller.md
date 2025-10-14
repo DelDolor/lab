@@ -35,3 +35,23 @@ kubectl get -n cosign-system configmap config-policy-controller -o yaml
 
 ## Check where cosign label is included
 kubectl get namespace -l "policy.sigstore.dev/include=true"
+
+
+# Testing
+```
+student@sec540.sans.labs ~/code/dm-infrastructure-az (feature/add-signing-key)$``` kubectl --context az create namespace sig-test
+#> namespace/sig-test created
+
+kubectl --context az label ns sig-test policy.sigstore.dev/include=true
+#> namespace/sig-test labeled
+
+kubectl --context az run -n sig-test nginx --image nginx
+#> Warning: no matching policies: spec.containers[0].image
+#> Warning: index.docker.io/library/nginx@sha256:8adbdcb969e2676478ee2c7ad333956f0c8e0e4c5a7463f4611d7a2e7a7ff5dc
+#> pod/nginx created
+
+kubectl --context az run -n sig-test --image mcr.microsoft.com/azure-cli:2.67.0 -- az help
+#> pod/az created
+
+
+```

@@ -13,6 +13,6 @@ spec:
       - "dm"
   parameters:
     repos: # Note - policy uses "startsWith" to match items
-      - r.domain.com/
-      - registry.k8s.io/kube-controller-manager:v1
-      - registry.k8s.io/kube-apiserver
+      - r.domain.com/ #registry only match which will permit using any image hosted in the r.sans.labs registry.
+      - registry.k8s.io/kube-controller-manager:v1 #will match 'v1' or any other longer tag which starts with 'v1' - like 'v1.3.17'.
+      - registry.k8s.io/kube-apiserver #matches any version of registry.k8s.io/kube-apiserver - which will include any tag, and any longer name like kube-apiserver-s390

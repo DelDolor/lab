@@ -31,6 +31,9 @@
 ## Start pod in specific namespace
     k run jouni-mealie --image=nginx -n=mealie
 
+## Add labels (and force policies)
+    kubectl --context az label ns sig-test policy.sigstore.dev/include=true
+
 ## Check kontti
     kubectl get pods
 
@@ -71,3 +74,4 @@ This removes pod and container within
 
 ## Open ingres ports and allow user to come
     kubectl expose deployment hello-node --type="LoadBalancer" --port=8080
+
