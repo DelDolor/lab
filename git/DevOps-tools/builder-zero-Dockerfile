@@ -1,0 +1,50 @@
+FROM debian:bookworm-slim
+
+SHELL ["/bin/bash", "-euo", "pipefail", "-c"]
+
+ARG DOCKER_VERSION=27.1.2
+ARG BUILDX_VERSION=0.16.2
+ARG COSIGN_VERSION=2.4.1
+ARG SYFT_VERSION=1.19.0
+ARG AWSCLI_VERSION=2.17.48
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl jq git bash coreutils tar gzip unzip \
+ && rm -rf /var/lib/apt/lists/*
+
+# docker cli
+RUN curl -fsSL "https://download.docker.com/linux/static/stable/x86_64/docker-${DOCKER_VERSION}.tgz" -o /tmp/docker.tgz \
+ && echo "<SHA256>  /tmp/docker.tgz" | sha256sum -c - \
+ && tar xzf /tmp/docker.tgz -C /usr/local --strip-components=1 \
+ && rm /tmp/docker.tgz
+
+# buildx plugin
+RUN mkdir -p /usr/local/lib/docker/cli-plugins \
+ && curl -fsSL "https://github.com/docker/buildx/releases/download/v${BUILDX_VERSION}/buildx-v${BUILDX_VERSION}.linux-amd64" -o /usr/local/lib/docker/cli-plugins/docker-buildx \
+ && echo "<SHA256>  /usr/local/lib/docker/cli-plugins/docker-buildx" | sha256sum -c - \
+ && chmod +x /usr/local/lib/docker/cli-plugins/docker-buildx
+
+# cosign
+RUN curl -fsSL "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/cosign-linux-amd64" -o /usr/local/bin/cosign \
+ && echo "<SHA256>  /usr/local/bin/cosign" | sha256sum -c - \
+ && chmod +x /usr/local/bin/cosign
+
+# syft
+RUN curl -fsSL "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz" -o /tmp/syft.tgz \
+ && echo "<SHA256>  /tmp/syft.tgz" | sha256sum -c - \
+ && tar xzf /tmp/syft.tgz -C /usr/local/bin syft \
+ && rm /tmp/syft.tgz
+
+# AWS CLI v2
+RUN curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip" -o /tmp/awscliv2.zip \
+ && echo "<SHA256>  /tmp/awscliv2.zip" | sha256sum -c - \
+ && unzip -q /tmp/awscliv2.zip -d /tmp \
+ && /tmp/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli --update \
+ && rm -rf /tmp/aws /tmp/awscliv2.zip
+
+# (valinnainen) bats, crane, trivy jne.
+
+LABEL org.opencontainers.image.vendor="PoroSec" \
+      org.opencontainers.image.title="builder-zero" \
+      org.opencontainers.image.description="Secure pinned toolchain for building and signing builder-base" \
+      org.opencontainers.image.version="0.3.1"
