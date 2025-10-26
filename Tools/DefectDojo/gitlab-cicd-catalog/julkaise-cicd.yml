@@ -1,0 +1,14 @@
+# 1. Luo cicd-templates projekti
+GitLab → New Project → security/cicd-templates
+
+# 2. Rakenne:
+cicd-templates/
+├── templates/
+│   └── defectdojo/
+│       └── template.yml
+└── README.md
+
+# 3. Käytä kaikissa projekteissa:
+include:
+  - project: 'security/cicd-templates'
+    file: '/templates/defectdojo/template.yml'
