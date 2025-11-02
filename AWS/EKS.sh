@@ -12,6 +12,11 @@ aws eks update-kubeconfig --profile ws-profile --alias aws --name <cluster-name>
 #Connect to cluster
 aws eks update-kubeconfig --name "<cluster-name>" --alias aws
 
+#update kubctl profile
+aws eks update-kubeconfig \
+  --region eu-north-1 \
+  --name poro-eks-cluster
+
 #list pods
 kubectl --context aws get pods -n <namespace>
 
@@ -28,5 +33,6 @@ kubectl auth whoami --context aws
 WEB_POD=$(kubectl get pods --context aws -o json -n <cluster-name> -l "app=web" | jq -r '.items[0].metadata.name')
 kubectl --context aws cp somedir/${WEB_POD}:/app/app.jar /tmp/app.jar
 unzip -p /tmp/app.jar BOOT-INF/classes/application-aws.properties > /labs/scratch/application-aws.properties
+
 
 
