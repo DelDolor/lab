@@ -1,0 +1,654 @@
+# DefectDojo CI/CD Template for GitLab
+# Optimized version using GitLab Variables
+# Based on SANS template, simplified for practical use
+
+spec:
+  inputs:
+    base-image:
+      description: Docker image for running imports
+      default: alpine:3.19
+    stage:
+      description: Pipeline stage for DefectDojo jobs
+      default: .post
+    tags:
+      description: Runner tags for job execution
+      default: ''
+    server-url:
+      description: DefectDojo server URL
+      default: 'https://ddd.hunajapurkki.fi'
+    timezone:
+      description: Timezone for import timestamps
+      default: Europe/Helsinki
+    smtp-server:
+      description: SMTP server for notifications (host:port), leave empty to disable
+      default: ''
+    notification-severities:
+      description: Severities to notify about
+      default: Critical,High
+    evaluate-product-grade:
+      description: Evaluate product health grade and fail/warn based on thresholds
+      type: boolean
+      default: false
+    product-grade-failure:
+      description: DefectDojo product custom field name for minimum failure threshold
+      default: 'product_grade_failure'
+    product-grade-warning:
+      description: DefectDojo product custom field name for minimum warning threshold
+      default: 'product_grade_warning'
+    noprod-enabled:
+      description: Enable uploads from non-production branches
+      type: boolean
+      default: false
+    # Scanner report paths
+    trivy-reports:
+      description: Path pattern for Trivy JSON reports
+      default: "trivy/*.json reports/*trivy*.json"
+    gitleaks-reports:
+      description: Path pattern for Gitleaks JSON reports
+      default: "gitleaks/*.json reports/*gitleaks*.json"
+    bandit-reports:
+      description: Path pattern for Bandit JSON reports
+      default: "bandit*.json reports/*bandit*.json"
+    semgrep-reports:
+      description: Path pattern for Semgrep JSON reports
+      default: "reports/*semgrep*.json"
+    hadolint-reports:
+      description: Path pattern for Hadolint JSON reports
+      default: "reports/*hadolint*.json"
+    zap-reports:
+      description: Path pattern for ZAP XML reports
+      default: "reports/*zap*.xml"
+    cyclonedx-reports:
+      description: Path pattern for CycloneDX SBOM reports
+      default: "*.cyclonedx.json reports/*.cyclonedx.json"
+    sarif-reports:
+      description: Path pattern for SARIF reports
+      default: "*.sarif reports/*.sarif"
+    dependency-check-reports:
+      description: Path pattern for OWASP Dependency Check reports
+      default: "dependency-check*.xml reports/dependency-check*.xml"
+    npmaudit-reports:
+      description: Path pattern for NPM Audit reports
+      default: "npm-audit*.json reports/*npm-audit*.json"
+
+---
+workflow:
+  rules:
+    # Estä MR pipeline production-haaroista
+    - if: '$CI_MERGE_REQUEST_SOURCE_BRANCH_NAME =~ /^(master|main|production)$/'
+      when: never
+    # Suosi MR pipelinea branch pipelinen sijaan non-prod haaroissa
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS && $CI_COMMIT_REF_NAME !~ /^(master|main|production)$/'
+      when: never
+    - when: always
+
+variables:
+  DEFECTDOJO_SERVER_URL: $[[ inputs.server-url ]]
+  DEFECTDOJO_TIMEZONE: $[[ inputs.timezone ]]
+  DEFECTDOJO_SMTP_SERVER: $[[ inputs.smtp-server ]]
+  DEFECTDOJO_NOTIFICATION_SEVERITIES: $[[ inputs.notification-severities ]]
+  DEFECTDOJO_EVALUATE_PRODUCT_GRADE: $[[ inputs.evaluate-product-grade ]]
+  DEFECTDOJO_PRODUCT_GRADE_FAILURE: $[[ inputs.product-grade-failure ]]
+  DEFECTDOJO_PRODUCT_GRADE_WARNING: $[[ inputs.product-grade-warning ]]
+  DEFECTDOJO_NOPROD_ENABLED: $[[ inputs.noprod-enabled ]]
+  DEFECTDOJO_TRIVY_REPORTS: $[[ inputs.trivy-reports ]]
+  DEFECTDOJO_GITLEAKS_REPORTS: $[[ inputs.gitleaks-reports ]]
+  DEFECTDOJO_BANDIT_REPORTS: $[[ inputs.bandit-reports ]]
+  DEFECTDOJO_SEMGREP_REPORTS: $[[ inputs.semgrep-reports ]]
+  DEFECTDOJO_HADOLINT_REPORTS: $[[ inputs.hadolint-reports ]]
+  DEFECTDOJO_ZAP_REPORTS: $[[ inputs.zap-reports ]]
+  DEFECTDOJO_CYCLONEDX_REPORTS: $[[ inputs.cyclonedx-reports ]]
+  DEFECTDOJO_SARIF_REPORTS: $[[ inputs.sarif-reports ]]
+  DEFECTDOJO_DC_REPORTS: $[[ inputs.dependency-check-reports ]]
+  DEFECTDOJO_NPMAUDIT_REPORTS: $[[ inputs.npmaudit-reports ]]
+  PROD_REF: /^(master|main|production)$/
+
+.defectdojo-scripts: &defectdojo-scripts |
+  set -e
+  
+  # Logging functions
+  log_info() {
+    echo -e "[\e[1;94mINFO\e[0m] $*"
+  }
+  
+  log_warn() {
+    echo -e "[\e[1;93mWARN\e[0m] $*"
+  }
+  
+  log_error() {
+    echo -e "[\e[1;91mERROR\e[0m] $*"
+  }
+  
+  fail() {
+    log_error "$*"
+    exit 1
+  }
+
+  # Install required tools
+  install_tools() {
+    log_info "Installing required tools..."
+    
+    apk add --no-cache curl jq tzdata 2>/dev/null || true
+    
+    if [ -n "${DEFECTDOJO_SMTP_SERVER}" ]; then
+      apk add --no-cache ssmtp 2>/dev/null || true
+      write_ssmtp_conf
+    fi
+    
+    log_info "Tools installed successfully"
+  }
+
+  # Configure SSMTP for email notifications
+  write_ssmtp_conf() {
+    log_info "Configuring SSMTP for email notifications..."
+    cat > /etc/ssmtp/ssmtp.conf <<-EOF
+	root=postmaster
+	mailhub=${DEFECTDOJO_SMTP_SERVER}
+	hostname=$(hostname)
+	FromLineOverride=YES
+	EOF
+  }
+
+  # Prepare email template
+  prepare_mail_template() {
+    cat > /tmp/mail.txt <<-EOF
+	To: ${GITLAB_USER_EMAIL}
+	From: defectdojo-noreply@hunajapurkki.fi
+	Subject: ⚠️ New vulnerabilities in ${CI_PROJECT_PATH}
+
+	Hello,
+
+	DefectDojo found <<nb>> new ${DEFECTDOJO_NOTIFICATION_SEVERITIES} severity vulnerabilities in ${CI_PROJECT_PATH}.
+	
+	Project: ${CI_PROJECT_PATH}
+	Branch: ${CI_COMMIT_REF_NAME}
+	Commit: ${CI_COMMIT_SHORT_SHA}
+	Pipeline: ${CI_PIPELINE_URL}
+	
+	View details: ${DEFECTDOJO_SERVER_URL}
+	
+	---
+	This is an automated notification from DefectDojo CI/CD integration.
+	EOF
+  }
+
+  # Validate DefectDojo connection and API key
+  validate_connection() {
+    if [ -z "${DEFECTDOJO_API_KEY}" ]; then
+      fail "DEFECTDOJO_API_KEY environment variable not set. Add it to GitLab CI/CD variables."
+    fi
+    
+    log_info "Validating connection to ${DEFECTDOJO_SERVER_URL}..."
+    
+    local response
+    response=$(curl -sf "${DEFECTDOJO_SERVER_URL}/api/v2/user_profile" \
+      -H "Authorization: Token ${DEFECTDOJO_API_KEY}" 2>&1) || {
+      log_error "Failed to connect to DefectDojo server"
+      log_error "Response: ${response}"
+      fail "Connection validation failed"
+    }
+    
+    local username
+    username=$(echo "${response}" | jq -r '.user.username // empty')
+    
+    if [ -z "${username}" ]; then
+      fail "Invalid API key or connection failed"
+    fi
+    
+    log_info "✓ Connected as: ${username}"
+  }
+
+  # Get or create product in DefectDojo
+  get_product_id() {
+    log_info "Searching for product: ${CI_PROJECT_PATH}"
+    
+    local response
+    response=$(curl -sf "${DEFECTDOJO_SERVER_URL}/api/v2/products/?name=${CI_PROJECT_PATH}" \
+      -H "Authorization: Token ${DEFECTDOJO_API_KEY}")
+    
+    local product_id
+    product_id=$(echo "${response}" | jq -r '.results[0].id // empty')
+    
+    if [ -z "${product_id}" ]; then
+      fail "Product '${CI_PROJECT_PATH}' not found in DefectDojo. Please create it first:\n  ${DEFECTDOJO_SERVER_URL}/product/add"
+    fi
+    
+    log_info "✓ Product ID: ${product_id}"
+    echo "${product_id}"
+  }
+
+  # Create engagement for this scan
+  create_engagement() {
+    local product_id=$1
+    local today=$(TZ="${DEFECTDOJO_TIMEZONE}" date +"%Y-%m-%d")
+    local branch_tag="${CI_COMMIT_TAG:-${CI_COMMIT_REF_NAME}}"
+    
+    log_info "Creating engagement..."
+    
+    local engagement_data
+    engagement_data=$(cat <<EOF
+{
+  "engagement_type": "CI/CD",
+  "product": "${product_id}",
+  "name": "GitLab CI/CD - ${branch_tag} - ${today}",
+  "source_code_management_uri": "${CI_PROJECT_URL}",
+  "commit_hash": "${CI_COMMIT_SHA}",
+  "branch_tag": "${branch_tag}",
+  "status": "In Progress",
+  "target_start": "${today}",
+  "target_end": "${today}",
+  "description": "**Pipeline:** [${CI_PIPELINE_ID}](${CI_PIPELINE_URL})\n**Commit:** [${CI_COMMIT_SHORT_SHA}](${CI_PROJECT_URL}/-/commit/${CI_COMMIT_SHA})\n**Branch:** [${branch_tag}](${CI_PROJECT_URL}/-/tree/${branch_tag})"
+}
+EOF
+)
+    
+    local response
+    response=$(echo "${engagement_data}" | curl -sf -X POST \
+      "${DEFECTDOJO_SERVER_URL}/api/v2/engagements/" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+      -d @-)
+    
+    local engagement_id
+    engagement_id=$(echo "${response}" | jq -r '.id // empty')
+    
+    if [ -z "${engagement_id}" ]; then
+      log_error "Failed to create engagement"
+      log_error "Response: ${response}"
+      fail "Engagement creation failed"
+    fi
+    
+    log_info "✓ Engagement ID: ${engagement_id}"
+    echo "${engagement_id}"
+  }
+
+  # Import scan report to DefectDojo
+  import_scan() {
+    local file=$1
+    local scan_type=$2
+    local engagement_id=$3
+    local service=${4:-""}
+    local today=$(TZ="${DEFECTDOJO_TIMEZONE}" date +"%Y-%m-%d")
+    
+    if [ ! -f "${file}" ]; then
+      return 0
+    fi
+    
+    log_info "→ Importing ${scan_type}: ${file}"
+    
+    local response
+    response=$(curl -sf -X POST \
+      "${DEFECTDOJO_SERVER_URL}/api/v2/import-scan/" \
+      -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+      -F "file=@${file}" \
+      -F "scan_date=${today}" \
+      -F "scan_type=${scan_type}" \
+      -F "engagement=${engagement_id}" \
+      -F "close_old_findings=true" \
+      -F "close_old_findings_product_scope=true" \
+      ${service:+-F "service=${service}"} 2>&1) || {
+      log_error "  ✗ Failed to import ${scan_type}"
+      return 1
+    }
+    
+    local test_id
+    test_id=$(echo "${response}" | jq -r '.test // empty')
+    
+    if [ -z "${test_id}" ]; then
+      log_error "  ✗ Import failed for ${scan_type}"
+      echo "${response}" | jq '.' 2>/dev/null || echo "${response}"
+      return 1
+    fi
+    
+    log_info "  ✓ Imported (Test ID: ${test_id})"
+    return 0
+  }
+
+  # Close engagement
+  close_engagement() {
+    local engagement_id=$1
+    
+    log_info "Closing engagement..."
+    
+    curl -sf -X POST \
+      "${DEFECTDOJO_SERVER_URL}/api/v2/engagements/${engagement_id}/close/" \
+      -H "Authorization: Token ${DEFECTDOJO_API_KEY}" \
+      -d '' >/dev/null
+    
+    log_info "✓ Engagement closed"
+  }
+
+  # Check for new findings
+  check_new_findings() {
+    local product_id=$1
+    
+    local response
+    response=$(curl -sf \
+      "${DEFECTDOJO_SERVER_URL}/api/v2/findings/?test__engagement__product=${product_id}&severity=${DEFECTDOJO_NOTIFICATION_SEVERITIES}&limit=500&false_p=false&duplicate=false&active=true" \
+      -H "Authorization: Token ${DEFECTDOJO_API_KEY}")
+    
+    local count
+    count=$(echo "${response}" | jq -r '.count // 0')
+    
+    echo "${count}"
+  }
+
+  # Evaluate product grade health
+  evaluate_product_grade() {
+    local product_id=$1
+    
+    log_info "Evaluating product health grade..."
+    
+    local response
+    response=$(curl -sf \
+      "${DEFECTDOJO_SERVER_URL}/api/v2/products/${product_id}/" \
+      -H "Authorization: Token ${DEFECTDOJO_API_KEY}")
+    
+    local current_grade
+    current_grade=$(echo "${response}" | jq -r '.prod_numeric_grade // 0')
+    
+    if [ "${current_grade}" = "null" ] || [ -z "${current_grade}" ]; then
+      log_warn "Could not retrieve product grade"
+      return 0
+    fi
+    
+    log_info "Current product grade: ${current_grade}"
+    
+    # Get thresholds from product meta
+    local failure_threshold
+    failure_threshold=$(echo "${response}" | jq -r \
+      --arg field "${DEFECTDOJO_PRODUCT_GRADE_FAILURE}" \
+      '.product_meta[] | select(.name==$field).value // ""')
+    
+    local warning_threshold
+    warning_threshold=$(echo "${response}" | jq -r \
+      --arg field "${DEFECTDOJO_PRODUCT_GRADE_WARNING}" \
+      '.product_meta[] | select(.name==$field).value // ""')
+    
+    if [ -z "${failure_threshold}" ]; then
+      log_info "No failure threshold configured (product meta field: ${DEFECTDOJO_PRODUCT_GRADE_FAILURE})"
+      return 0
+    fi
+    
+    log_info "Thresholds - Failure: ${failure_threshold}, Warning: ${warning_threshold:-N/A}"
+    
+    # Check failure
+    if [ "${current_grade}" -lt "${failure_threshold}" ]; then
+      log_error "❌ Product grade ${current_grade} is below failure threshold ${failure_threshold}"
+      exit 1
+    fi
+    
+    # Check warning
+    if [ -n "${warning_threshold}" ] && [ "${current_grade}" -lt "${warning_threshold}" ]; then
+      log_warn "⚠️  Product grade ${current_grade} is below warning threshold ${warning_threshold}"
+      exit 142  # Special exit code for warnings
+    fi
+    
+    log_info "✓ Product grade is acceptable"
+  }
+
+  # Count reports
+  count_reports() {
+    local count=0
+    
+    for pattern in ${DEFECTDOJO_TRIVY_REPORTS} ${DEFECTDOJO_GITLEAKS_REPORTS} \
+      ${DEFECTDOJO_BANDIT_REPORTS} ${DEFECTDOJO_SEMGREP_REPORTS} \
+      ${DEFECTDOJO_HADOLINT_REPORTS} ${DEFECTDOJO_ZAP_REPORTS} \
+      ${DEFECTDOJO_CYCLONEDX_REPORTS} ${DEFECTDOJO_SARIF_REPORTS} \
+      ${DEFECTDOJO_DC_REPORTS} ${DEFECTDOJO_NPMAUDIT_REPORTS}; do
+      for file in ${pattern}; do
+        if [ -f "${file}" ]; then
+          count=$((count + 1))
+        fi
+      done
+    done
+    
+    echo "${count}"
+  }
+
+  # Main import function
+  import_into_defectdojo() {
+    log_info "═══════════════════════════════════════════════════════════"
+    log_info "DefectDojo CI/CD Integration"
+    log_info "Server: ${DEFECTDOJO_SERVER_URL}"
+    log_info "Project: ${CI_PROJECT_PATH}"
+    log_info "═══════════════════════════════════════════════════════════"
+    
+    # Install tools
+    install_tools
+    
+    # Validate connection
+    validate_connection
+    
+    # Get product ID
+    local product_id
+    product_id=$(get_product_id)
+    
+    # Count available reports
+    local reports_count
+    reports_count=$(count_reports)
+    
+    log_info "Found ${reports_count} report(s) to import"
+    
+    if [ "${reports_count}" -eq 0 ]; then
+      log_warn "No security scan reports found. Skipping DefectDojo upload."
+      log_info "Expected report patterns:"
+      log_info "  - Trivy: ${DEFECTDOJO_TRIVY_REPORTS}"
+      log_info "  - Gitleaks: ${DEFECTDOJO_GITLEAKS_REPORTS}"
+      log_info "  - Bandit: ${DEFECTDOJO_BANDIT_REPORTS}"
+      log_info "  (see template inputs for full list)"
+      exit 0
+    fi
+    
+    # Prepare email if notifications enabled
+    local initial_findings=0
+    if [ -n "${DEFECTDOJO_SMTP_SERVER}" ]; then
+      prepare_mail_template
+      initial_findings=$(check_new_findings "${product_id}")
+      log_info "Initial findings count: ${initial_findings}"
+    fi
+    
+    # Create engagement
+    local engagement_id
+    engagement_id=$(create_engagement "${product_id}")
+    
+    log_info "───────────────────────────────────────────────────────────"
+    log_info "Importing scan reports..."
+    log_info "───────────────────────────────────────────────────────────"
+    
+    local imported=0
+    local failed=0
+    
+    # Import Trivy reports
+    for pattern in ${DEFECTDOJO_TRIVY_REPORTS}; do
+      for file in ${pattern}; do
+        if [ -f "${file}" ]; then
+          if import_scan "${file}" "Trivy Scan" "${engagement_id}"; then
+            imported=$((imported + 1))
+          else
+            failed=$((failed + 1))
+          fi
+        fi
+      done
+    done
+    
+    # Import Gitleaks reports
+    for pattern in ${DEFECTDOJO_GITLEAKS_REPORTS}; do
+      for file in ${pattern}; do
+        if [ -f "${file}" ]; then
+          if import_scan "${file}" "Gitleaks Scan" "${engagement_id}"; then
+            imported=$((imported + 1))
+          else
+            failed=$((failed + 1))
+          fi
+        fi
+      done
+    done
+    
+    # Import Bandit reports
+    for pattern in ${DEFECTDOJO_BANDIT_REPORTS}; do
+      for file in ${pattern}; do
+        if [ -f "${file}" ]; then
+          if import_scan "${file}" "Bandit Scan" "${engagement_id}"; then
+            imported=$((imported + 1))
+          else
+            failed=$((failed + 1))
+          fi
+        fi
+      done
+    done
+    
+    # Import Semgrep reports
+    for pattern in ${DEFECTDOJO_SEMGREP_REPORTS}; do
+      for file in ${pattern}; do
+        if [ -f "${file}" ]; then
+          if import_scan "${file}" "Semgrep JSON Report" "${engagement_id}"; then
+            imported=$((imported + 1))
+          else
+            failed=$((failed + 1))
+          fi
+        fi
+      done
+    done
+    
+    # Import Hadolint reports
+    for pattern in ${DEFECTDOJO_HADOLINT_REPORTS}; do
+      for file in ${pattern}; do
+        if [ -f "${file}" ]; then
+          if import_scan "${file}" "Hadolint Dockerfile check" "${engagement_id}"; then
+            imported=$((imported + 1))
+          else
+            failed=$((failed + 1))
+          fi
+        fi
+      done
+    done
+    
+    # Import ZAP reports
+    for pattern in ${DEFECTDOJO_ZAP_REPORTS}; do
+      for file in ${pattern}; do
+        if [ -f "${file}" ]; then
+          if import_scan "${file}" "ZAP Scan" "${engagement_id}"; then
+            imported=$((imported + 1))
+          else
+            failed=$((failed + 1))
+          fi
+        fi
+      done
+    done
+    
+    # Import CycloneDX reports
+    for pattern in ${DEFECTDOJO_CYCLONEDX_REPORTS}; do
+      for file in ${pattern}; do
+        if [ -f "${file}" ]; then
+          if import_scan "${file}" "CycloneDX Scan" "${engagement_id}"; then
+            imported=$((imported + 1))
+          else
+            failed=$((failed + 1))
+          fi
+        fi
+      done
+    done
+    
+    # Import SARIF reports
+    for pattern in ${DEFECTDOJO_SARIF_REPORTS}; do
+      for file in ${pattern}; do
+        if [ -f "${file}" ]; then
+          if import_scan "${file}" "SARIF" "${engagement_id}"; then
+            imported=$((imported + 1))
+          else
+            failed=$((failed + 1))
+          fi
+        fi
+      done
+    done
+    
+    # Import Dependency Check reports
+    for pattern in ${DEFECTDOJO_DC_REPORTS}; do
+      for file in ${pattern}; do
+        if [ -f "${file}" ]; then
+          if import_scan "${file}" "Dependency Check Scan" "${engagement_id}"; then
+            imported=$((imported + 1))
+          else
+            failed=$((failed + 1))
+          fi
+        fi
+      done
+    done
+    
+    # Import NPM Audit reports
+    for pattern in ${DEFECTDOJO_NPMAUDIT_REPORTS}; do
+      for file in ${pattern}; do
+        if [ -f "${file}" ]; then
+          if import_scan "${file}" "NPM Audit Scan" "${engagement_id}"; then
+            imported=$((imported + 1))
+          else
+            failed=$((failed + 1))
+          fi
+        fi
+      done
+    done
+    
+    log_info "───────────────────────────────────────────────────────────"
+    log_info "Import summary: ${imported} succeeded, ${failed} failed"
+    log_info "───────────────────────────────────────────────────────────"
+    
+    # Close engagement
+    close_engagement "${engagement_id}"
+    
+    # Check for new findings and send email
+    if [ -n "${DEFECTDOJO_SMTP_SERVER}" ]; then
+      local final_findings
+      final_findings=$(check_new_findings "${product_id}")
+      local new_findings=$((final_findings - initial_findings))
+      
+      log_info "Findings check: ${initial_findings} → ${final_findings} (${new_findings} new)"
+      
+      if [ "${new_findings}" -gt 0 ]; then
+        log_warn "⚠️  ${new_findings} new ${DEFECTDOJO_NOTIFICATION_SEVERITIES} severity vulnerabilities detected"
+        sed -i "s/<<nb>>/${new_findings}/" /tmp/mail.txt
+        if ssmtp "${GITLAB_USER_EMAIL}" < /tmp/mail.txt; then
+          log_info "✓ Email notification sent to ${GITLAB_USER_EMAIL}"
+        else
+          log_warn "Failed to send email notification"
+        fi
+      else
+        log_info "✓ No new critical vulnerabilities"
+      fi
+    fi
+    
+    # Evaluate product grade if requested
+    if [ "${DEFECTDOJO_EVALUATE_PRODUCT_GRADE}" = "true" ]; then
+      log_info "Waiting 60s for findings to process..."
+      sleep 60
+      evaluate_product_grade "${product_id}"
+    fi
+    
+    log_info "═══════════════════════════════════════════════════════════"
+    log_info "✓ DefectDojo import completed successfully"
+    log_info "View results: ${DEFECTDOJO_SERVER_URL}"
+    log_info "═══════════════════════════════════════════════════════════"
+  }
+
+# Main job definition
+defectdojo:
+  tags: [ $[[ inputs.tags ]] ]
+  image: $[[ inputs.base-image ]]
+  stage: $[[ inputs.stage ]]
+  script:
+    - *defectdojo-scripts
+    - import_into_defectdojo
+  allow_failure:
+    exit_codes: 142  # Warning exit code (product grade below warning threshold)
+  rules:
+    # Run on production/main branches
+    - if: '$CI_COMMIT_REF_NAME =~ $PROD_REF'
+      when: always
+    # Run on tags
+    - if: '$CI_COMMIT_TAG'
+      when: always
+    # Run on non-prod branches if enabled
+    - if: '$DEFECTDOJO_NOPROD_ENABLED == "true"'
+      when: always
+    # Otherwise manual trigger
+    - when: manual

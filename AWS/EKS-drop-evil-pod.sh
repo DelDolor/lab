@@ -1,11 +1,11 @@
 #  Create namespace and "evil" pod
-kubectl --context aws create ns sabre
+kubectl --context aws create ns evil
 cat <<EOF | kubectl --context aws apply -f -
 apiVersion: v1
 kind: Pod
 metadata:
   name: evil-aws-cli
-  namespace: sabre
+  namespace: evil
 spec:
   containers:
   - name: evil-aws-cli
@@ -19,9 +19,9 @@ spec:
         value: "$(dm-deployment-id-aws)"
 EOF
 
-kubectl --context aws -n sabre get pods
+kubectl --context aws -n evil get pods
 
-kubectl --context aws exec --stdin --tty -n sabre evil-aws-cli  -- /bin/bash
+kubectl --context aws exec --stdin --tty -n evil evil-aws-cli  -- /bin/bash
 
 # Check identity and assumed role
 aws sts get-caller-identity
@@ -37,4 +37,4 @@ aws s3 ls s3://<bucket-name>/dir/
 aws s3 cp s3://<bucket-name>/dir/file.pdf ~/tmp/
 
 # load file from container to your machine
-kubectl exec -n sabre evil-aws-cli -- cat /tmp/file.pdf  > ~/tmp/file.pdf
+kubectl exec -n evil evil-aws-cli -- cat /tmp/file.pdf  > ~/tmp/file.pdf

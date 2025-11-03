@@ -3,13 +3,13 @@ kind: Pod
 metadata:
   creationTimestamp: null
   labels:
-    run: nginx
+    run: attacker
     method: from-code
-  name: nginx-yaml-p001
+  name: evil-kali
 spec:
   containers:
-  - image: nginx
-    name: nginx-yaml-c001
+  - image: kalilinux/kali-rolling
+    name: evil-kali
     resources: {}
   dnsPolicy: ClusterFirst
   restartPolicy: Always
