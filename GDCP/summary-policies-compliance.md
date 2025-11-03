@@ -1,0 +1,1 @@
+Tähän pitää kuvata vielä mitä policyitä GDC tukee ja miten ne määritetään. tavoitteena policy-as-code ja compliance-as-code malli
