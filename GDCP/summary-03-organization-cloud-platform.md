@@ -1,26 +1,36 @@
 # 5. Pilvialusta – organisaatiokohtainen tenantti
 ## 5.1 Resurssihierarkia: Organization – Project – Cluster
 ### 5.1.1 Organisaatio ja projektit
+Edellisestä dokumentista tuttu IO-ryhmä provisioi asiakasorganisaatiolle muista asiakkaista eriytetyn pilvialustan. Googlen sanastossa tämä pilvialusta tai tenantti on nimeltään organisaatio.
+
 Organisaatio toimii GDC AG:n resurssihierarkian ylimpänä tasona, jonka alle sijoittuvat projektit ja klusterit. Se tarjoaa fyysisen ja loogisen eristyksen muista organisaatioista. Organisaatiolla on oma virtuaalinen verkko, joka sisältää sisäisen IP-alueen (vain organisaation sisäinen liikenne) ja ulkoisen IP-alueen, jonka kautta sallittu liikenne voidaan ohjata eksplisiittisesti (default deny). Tämä verkkomalli tukee segmentointia ja liikenteen kontrollointia organisaation sisällä.
 
 Projektit toimivat organisaation sisällä loogisina yksikköinä, jotka vastaavat Kubernetes-namespacen käsitettä. Ne tarjoavat erottelun eri sovellusympäristöille (esim. kehitys, testaus, tuotanto) ja mahdollistavat resurssien, IAM-politiikkojen ja verkkoasetusten hallinnan projektikohtaisesti. Projektit toimivat samalla verkon aliverkkoina (subnet), ja niiden välinen liikenne on oletuksena estetty. Tarvittaessa liikenne voidaan sallia tarkasti määritellyillä ProjectNetworkPolicy-säännöillä.
 
 Namespace-sameness-ominaisuus takaa sen, että projektin resurssit ja politiikat toimivat yhtenäisesti eri klustereissa. Tämä mahdollistaa skaalautuvan ja hallitun ympäristön, jossa projektien elinkaari ja käyttö voidaan hallita keskitetysti.
 
-### 5.1.2 Organisaation suunnittelu [MUOTOILE TEKSTI]
-Samaan organisaatioon tulee kasata vain sellaiset projektit jotka jakavat saman luottamuksen (trust boundary) tämä voi olla vaikka yhden omistajan yhden turvaluokan järjestelmät. Tästä johtuen yhdellä asiakasorganisaatiolla voi olla useita GDC organisaatioita (tenantteja). Millaiset järjestelmät (projektit) voivat jakaa saman organisaation:
-- työkuormat voivat jakaa riippuvuuksia, tietolähteitä tai niitä on tarpeen integroida yhteen
-- Järjestelmillä voi olla sama ylläpitäjä (platform admin)
-- Järjestelmät voivat jakaa alla olevan fyysisen infrastruktuurin keskenään
-- Järjestelmät kuuluvat samaan budjetaariseen kokonaisuuteen (sama maksaja)
-- Järjestelmille soveltuu sama saatavuusvaatimus
+### 5.1.2 Organisaation suunnittelu
+Organisaatio (tenantti) on GDC AG -pilvialustan ensisijainen erottelu- ja luottamusraja. Yhteen organisaatioon kootaan vain projektit, jotka jakavat saman trust boundaryn, hallintamallin ja vaatimustason (esim. omistajuus, tietoturvaluokka). Yhdellä asiakasorganisaatiolla voi olla useita GDC-organisaatioita, jos erilliset luottamusrajat, sääntely tai tekniset vaatimukset sitä edellyttävät.
 
-### 5.1.3 Projektien suunnittelu [MUOTOILE TEKSTI]
-Projektien avulla järjestelmät eriytetään toisistaan loogisesti verkon ja käyttöoikeuksien osalta. Kun projektia suunnitellaan, kannattaa ajatella suurinta mahdollista kokonaisuutta joka voi jakaa resursseja keskenään, niiden käyttöoikeuksille on samat vaatimukset, niitä voi tai pitää valvoa kokonaisuutena. Kubernetes termein projekti on namespace ja tämä namespace on jaettu kaikkien organisaation klustereiden kesken. Tämä ei kuitenkaan tarkoita sitä että kyseisen namespacen podi on scheduloitu kaikkiin klustereihin vaan sitä että namespace nimi on uniikki organisaatiolle. Käyttöoikeudet määritetään tekemällä rolebinding roolin ja projektin välillä.
+Suositus: sijoita samaan organisaatioon vain projektit, jotka täyttävät useimmat näistä kriteereistä:
+- Yhteiset riippuvuudet ja integraatiot: työkuormat hyödyntävät samoja tietolähteitä, palveluja tai niitä on tarkoituksenmukaista integroida keskenään.
+- Yhtenäinen hallinta: sama Platform Admin -tiimi vastaa projektien hallinnasta, IAM:stä ja verkkomallista.
+- Jaettu infrastruktuuri: projektit voidaan toteuttaa saman alla olevan kapasiteetin (compute/storage/network) varaan ilman erillistä eristystarvetta.
+- Budjetointi ja laskutus: projektit kuuluvat samaan budjettikokonaisuuteen ja talousseurantaan.
+- Saatavuus- ja palautumistavoitteet: projekteilla on yhteneväiset SLO/SLI-, RPO/RTO- ja geoerotteluvaatimukset.
 
-Rolebindingt tehdää projektitasolle ja niillä määritetään kuka voi tehdä ja mitä projektin resursseille. Projektitasolla määritetään myös network policyt joilla määritetään mihin ja kenen kanssa projektin resurrsit voivat jutella. Oletuksena projektin sisällä resurssit voivat keskustella, mutta projektien välinen on estetty.  
+Mikäli jokin edellä mainituista poikkeaa merkittävästi (esim. eri turvallisuusluokka, erillinen omistaja tai jyrkempi segmentointi- ja pääsynhallintatarve), projekti kannattaa sijoittaa omaan organisaatioonsa. Tämä yksinkertaistaa IAM:ää, vähentää ristikkäisiä verkko- ja politiikkapoikkeuksia ja selkeyttää auditointia.
 
-[PIIRRÄ REFEKUVA PROJEKTEISTA]
+[tähän kuva jossa näkyy organisaatioden välinen fyysinen erottelu]
+
+### 5.1.3 Projektien suunnittelu
+Projektit muodostavat GDC Air-Gapped -alustassa organisaation sisäisen loogisen erottelutason, jonka avulla järjestelmät ja työkuormat eriytetään toisistaan verkko- ja käyttöoikeusmallin tasolla. Projektin suunnittelussa keskeistä on tunnistaa ne työkuormat, joilla on yhteneväiset käyttöoikeusvaatimukset, valvontatarpeet ja resurssiriippuvuudet. Yhteen projektiin tulisi koota vain ne sovellukset ja palvelut, joita on tarkoituksenmukaista hallita, valvoa ja auditoida yhtenä kokonaisuutena.
+
+Käytännössä projekti vastaa Kubernetesin namespacea, joka on jaettu kaikkien organisaation klustereiden kesken. Tämä ei tarkoita, että kyseisen projektin podit ajettaisiin kaikissa klustereissa, vaan että namespace-nimi on organisaatiotasolla uniikki, mahdollistaen yhdenmukaisen hallinnan ja politiikat klusterien välillä.
+
+Käyttöoikeudet määritellään rolebindingien avulla, joissa roolit sidotaan projektikohtaisesti käyttäjiin ja palvelutunnuksiin. Näin voidaan hallita tarkasti, kuka voi luoda, muokata tai poistaa projektin resursseja.
+
+Verkollinen erottelu toteutetaan NetworkPolicy-säännöillä, joilla määritetään, mihin kohteisiin projektin resurssit voivat muodostaa yhteyksiä ja mitkä lähteet voivat tavoittaa ne. Oletuksena projektin sisäinen liikenne on sallittu, mutta projektien välinen liikenne on estetty. Liikennettä voidaan avata vain eksplisiittisesti määritellyillä säännöillä, mikä tukee vähimmän oikeuden periaatetta ja vahvistaa eristystä organisaation sisällä. 
 
 ### 5.1.4 Klusterit ja kapasiteettirajoitteet
 Organisaation perustamisen yhteydessä infrastruktuurioperaattori luo infrastruktuuriklusterin, joka sisältää organisaation control plane -komponentit sekä Management API -palvelimen. Tämä klusteri hallinnoi palveluita ja kuormia, joita ei ajeta konttipohjaisesti.
@@ -48,17 +58,32 @@ Node on virtuaalikone, joka sisältää container runtimen ja kubelet-agentin. K
 [kuva pd]
 
 ## 5.2 Platform-palvelut ja verkkomalli (julkaisu, segmentointi)
+GDC Air-Gapped -alustan verkkomalli perustuu vahvaan segmentointiin ja “default deny” -periaatteeseen. Liikenne jaetaan north–south (palveluiden julkaisu ja ulkoinen pääsy) ja east–west (sisäinen liikenne projektien ja klusterien välillä) -suuntiin.
+
+North–south: Julkinen tai sisäinen liikenne ohjataan L4/L7-kuormantasaajien kautta. Ingress-resurssit hallitsevat julkaisua, ja niihin liitetään ProjectNetworkPolicy-säännöt, jotka rajaavat sallitut lähde- ja kohdeverkot.
+
+East–west: Projektien ja klusterien välistä liikennettä hallitaan NetworkPolicy- ja ProjectNetworkPolicy-resursseilla. Niillä voidaan rajata yhteydet sovellus- ja porttitasolla, mikä mahdollistaa mikrosegmentoinnin ja liikenteen valvonnan.
+
+Kuormanjako tukee sekä L4- että L7-tason palveluita, ja se voidaan toteuttaa zonaalisesti tai globaalisti usean zonen yli. Verkkoerottelu perustuu projektikohtaisiin AccessBoundary-määrittelyihin, jotka estävät luvattoman liikenteen projektien ja klustereiden välillä.
+
 ## 5.3 Työkuormat: VM:t ja Kubernetes
 Asiakasorganisaatio voi rakentaa projekteihin VM-pohjaisia resursseja ja kontti-pohjaisia resursseja. VM-pohjainen työkuorma elää VM:n sisässä ja konttipohjainen kubernetes klusterissa. Tämä tuottaa samalla loogisen erottelun näiden kahden työkuorman välillä. 
 [kuva aa]
 
 ## 5.3.1 VM
-GDC alusta sisältää Ubuntu ja Rocky linux imaget ja tukee RHEL, SUSE, Windows Server 2019 ja Windows 10 OS imageja. IO voi tehdä ja julkaista organisaatioiden käyttöön räätälöityjä imageja. GDC alusta sisältää useita vaihtoehtoja virtualikoneen kooksi, jolloin tarvittava CPU, RAM ja GPU voidaan valita tarkoitukseen sopivaksi. Virtuaalikoneita ajetaan organisaation infratrukruuriklusterissa jossa on myös organisaation control ja data plane sekä managed palvaluita.
+GDC alusta sisältää Ubuntu ja Rocky linux imaget ja tukee RHEL, SUSE, Windows Server 2019 ja Windows 10 OS imageja. IO voi tehdä ja julkaista organisaatioiden käyttöön räätälöityjä imageja. GDC alusta sisältää useita vaihtoehtoja virtualikoneen kooksi, jolloin tarvittava CPU, RAM ja GPU voidaan valita tarkoitukseen sopivaksi. Virtuaalikoneita ajetaan organisaation infrastrukruuriklusterissa jossa on myös organisaation control ja data plane sekä managed palveluita.
 
 ## 5.3.2 Konttipohjaiset kuormat
 Containereita ajetaan podeissa, jotka kuuluvat namespaceen (projekti) ja näitä ajetaan Kubernetes klusterissa. Organisaatiolla voi olla useita kubernetes klustereita joka mahdollistaa järjestelmien tai ympäristöjen (dev, test, prod) eriyttämisen. Klusterissa voi olla useita node-pooleja ja jokaisen podin osalta määritetään missä poolissa sitä ajetaan. Tämä mahdollistaa sen, että konttia voidaan tarpeen mukaan ajaa poolissa jossa on esim. muisti tai GPU optimoidut nodet. Klusterit ovat aina zonaaleja eli elävät yksittäisessä GDC instanssissa. Projekti, eli kubernetes namespace, on kuitenkin globaali ja mahdollistaa järjestelmän hajauttamisen useaan klusteriin (availability zone ja/tai regioona).
 
 [kuva ab]
+
+## 5.3.3 Varmuuskopionti ja palauttaminen
+GDC alustan varmistuspalvelu tukee Kubernetes (user) klusterin varmistusta (Deployments, StatefulSets, Secrets, ConfigMaps), virtuaalipalvelimia (levykuvat ja levyt) sekä Harbor-rekistereitä, joiden varmistus toteutetaan erillisenä tehtävänä HarborInstanceBackup-resurssien avulla.
+
+Varmistuspoliitikoilla voidaan automatisoida ja aikatauluttaa varmistukset. Kaikki varmistettava materiaali salataan HSM-pohjaisella KMS-avaimella ja tallennetaan S3-yhteensopivaan Object Storageen, joka voi sijaita paikallisesti tai toisella zonella.
+
+GDC tukee valmiita palautussuunnitelmia, ja esimerkiksi VM:n osalta palautus voidaan kohdistaa yksittäisiin levyihin. Harbor-instanssin palautus edellyttää koko instanssin palauttamista, ei yksittäisten repo- tai kuvatasojen palautusta. 
 
 ## 5.4 IAM ja pääsynhallinta (IdP, RBAC, palvelutunnukset)
 IAM-ratkaisu perustuu alustan natiiviin Google Distributed Cloud (GDC) IAM-palveluun, joka hallinnoi käyttöoikeuksia, rooleja ja palvelutunnuksia. Tämän lisäksi toteutetaan identiteetin tarjoaja (IdP), joka vastaa käyttäjien autentikoinnista. IdP integroituu GDC:hen joko OpenID Connect (OIDC)- tai SAML-protokollan avulla.
@@ -178,44 +203,66 @@ Metriikkatietoja voidaan tarkastella:
 Audit- ja operatiivisten lokien visualisointia voidaan tehdä Grafanan kautta. Grafana mahdollistaa lokihaut ja lokipohjaiset hälytykset. Laajempaa tietoturvavalvontaa varten lokitiedot kannattaa viedä erilliseen SIEM-järjestelmään.
 
 ## 5.7 Tietoturva-arkkitehtuuri
-GDC tietoturva-arkkitehtuuri perustuu työkuormien ja käyttäjien erotteluun siten, että pienimpien käyttöoikeuksien periaate toteutuu. Työkuormina toimivat resurssit voidaan erotella toisistaan projekteihin. Käyttäjille ja palvelutunnuksille määritetään rbac-roolien kautta mitä ne voivat tehdä ja mihin.
+GDC Air-Gapped -ympäristön tietoturva-arkkitehtuuri perustuu eristämiseen, vähimpien oikeuksien periaatteeseen ja automaatioon. Työkuormat, käyttäjät ja hallintakomponentit on erotettu loogisesti, ja kaikki käyttöoikeudet hallitaan RBAC- ja IAM-mekanismeilla.
 
-GDC Air-Gapped -ympäristön tietoturva-arkkitehtuuri perustuu periaatteeseen, jossa infrastruktuuri ja sovelluskehitys toteutetaan hallitusti, todennettavasti ja automaattisesti. Tämä saavutetaan yhdistämällä Infrastructure-as-Code (IaC) ja DevSecOps-menetelmät, jotka mahdollistavat turvallisuusvaatimusten sisällyttämisen osaksi koko kehitys- ja julkaisuketjua.
+Tietoturva on sisäänrakennettu osaksi infrastruktuurin ja sovellusten elinkaarta. Ympäristö hyödyntää Infrastructure-as-Code (IaC)- ja DevSecOps-periaatteita, joilla varmistetaan, että kaikki resurssit – kuten klusterit, verkot, palvelut ja käyttöoikeudet – määritellään koodina, versionhallitaan ja auditoidaan. Tämä mahdollistaa toistettavan, valvottavan ja vaatimustenmukaisen käyttöönoton.
 
-Julkaisuautomaatio perustuu luotettuun pohjaan, jossa kaikki resurssit – kuten klusterit, verkot, palvelut ja käyttöoikeudet – määritellään koodina ja versionhallitaan. Tämä mahdollistaa toistettavan ja auditoitavan infrastruktuurin käyttöönoton. Sovelluskehityksessä DevSecOps-malli varmistaa, että tietoturva ei ole erillinen vaihe, vaan osa jatkuvaa integraatiota ja toimitusta (CI/CD).
-User-klustereissa voidaan käyttää OPA Gatekeeper -politiikkamoottoria, joka mahdollistaa Policy-as-Code-periaatteella toteutettujen sääntöjen enforce-tyyppisen valvonnan. Tämän avulla voidaan rajoittaa esimerkiksi:
+Kubernetes-tasolla tietoturvavalvonta toteutetaan OPA Gatekeeper -politiikkamoottorilla, joka mahdollistaa Policy-as-Code -periaatteella määritettyjen sääntöjen enforce-valvonnan. Gatekeeperin avulla voidaan hallita resurssien käyttöä, konttien tyyppiä, verkko- ja tallennuspolitiikkoja sekä metatietojen yhdenmukaisuutta.
 
-- Mitä resursseja sovellukset voivat käyttää
-- Minkä tyyppisiä kontteja voidaan ajaa
-- Miten verkko- ja tallennuspolitiikat toteutetaan
-- Onko metadata ja merkinnät (labels, annotations) vaaditussa muodossa
+Kaikki konttipohjaiset työkuormat skannataan ennen käyttöönottoa haittaohjelmien, haavoittuvuuksien ja konfiguraatiovirheiden varalta. Skannaus integroidaan CI/CD-putkeen, ja hyväksyntä tapahtuu automaattisesti ennen julkaisuja. Konttikuvat ovat aina peräisin luotetusta, air-gapped-ympäristössä toimivasta rekisteristä.
 
-Konttipohjaiset työkuormat skannataan ennen käyttöönottoa haittaohjelmien, haavoittuvuuksien ja konfiguraatiovirheiden varalta. Skannaus integroidaan CI/CD-putkeen, ja tulokset voidaan validoida automaattisesti ennen julkaisua. Käytettävät konttikuvat voivat olla organisaation itse tuottamia tai peräisin luotetusta sisäisestä rekisteristä, joka toimii air-gapped-ympäristössä.
-Virtuaalikoneet (VM) perustuvat valmiisiin imagetiedostoihin, jotka toimitetaan organisaatiolle joko fyysisesti tai suojatun siirtokanavan kautta. Ennen käyttöönottoa imaget kovennetaan (hardening) organisaation tietoturvapolitiikan mukaisesti. Kovennus sisältää esimerkiksi:
-- Tarpeettomien palveluiden poistamisen
-- Käyttöoikeuksien rajoittamisen
-- Auditointilokien ja monitoroinnin konfiguroinnin
-- Vahvan salauksen ja avainhallinnan käyttöönoton
-
-Yhdessä nämä menetelmät muodostavat GDC Air-Gapped -ympäristön tietoturva-arkkitehtuurin perustan, jossa infrastruktuuri ja sovellukset ovat hallittuja, todennettavia ja sääntelyvaatimusten mukaisia. Tietoturva ei ole erillinen osa, vaan sisäänrakennettu ominaisuus koko alustan toiminnassa.
+Virtuaalikoneet (VM) toimitetaan ja kovennetaan (hardening) organisaation tietoturvapolitiikan mukaisesti ennen käyttöönottoa. Kovennus sisältää tarpeettomien palveluiden poistamisen, käyttöoikeuksien rajoittamisen, auditoinnin ja salauksen käyttöönoton.
 
 ### 5.7.1 Policy-as-Code, Compliance-as-Code ja CSPM
-Policy-as-Code on menetelmä, jossa organisaation toimintapolitiikat – kuten pääsynhallinta, resurssien käyttörajat tai verkkoerottelusäännöt – määritellään ja hallitaan ohjelmallisesti konfiguraatiotiedostoina. Tämä mahdollistaa politiikkojen versionhallinnan, automaattisen validoinnin ja jatkuvan valvonnan infrastruktuurin osana. Tyypillisesti käytetään politiikkamoottoreita kuten Open Policy Agent (OPA), jotka tulkitsevat sääntöjä esimerkiksi JSON- tai YAML-muodossa. Policy-as-Code tukee infrastruktuurin automatisointia ja vähentää manuaalisten virheiden riskiä.
+GDC Air-Gapped -ympäristössä turvallisuus- ja vaatimustenmukaisuussäännöt toteutetaan ohjelmallisesti osana infrastruktuurin ja sovellusten elinkaarta.
 
-Compliance-as-Code laajentaa Policy-as-Code-ajattelua sääntelyvaatimusten ja standardien toteuttamiseen ohjelmallisesti. Sen avulla voidaan mallintaa esimerkiksi ISO 27001:n, NIST SP 800-53:n tai SOC II:n mukaisia vaatimuksia konfiguraatioina, jotka voidaan tarkistaa automaattisesti osana CI/CD-prosessia tai auditointia. Compliance-as-Code mahdollistaa jatkuvan vaatimustenmukaisuuden seurannan ja dokumentoinnin, mikä on erityisen tärkeää eristetyissä ympäristöissä, joissa ulkoinen auditointi voi olla rajoitettua.
+Policy-as-Code tarkoittaa, että organisaation turvallisuus- ja hallintavaatimukset kuvataan eksplisiittisinä politiikkoina (esim. YAML/JSON-säännöstöinä), jotka otetaan enforce-tilassa käyttöön itse ympäristössä. Näin politiikat eivät ole vain dokumentaatiota, vaan suoraan käytössä olevia rajoitteita, jotka määrittävät esimerkiksi resurssien käyttöoikeudet, verkon erottelusäännöt ja konttikuvien hyväksynnän. Politiikat toteutetaan esim. OPA Gatekeeper-moottorilla, ja niiden toteutuminen muodostaa perustan myös jatkuvalle compliance-seurannalle.
 
+Compliance-as-Code puolestaan varmistaa, että nämä samat politiikat ja standardit (esim. ISO 27001, NIST SP 800-53, SOC 2) täyttyvät jo ennen käyttöönottoa. CI/CD-putkessa suoritetaan automaattiset tarkistukset, jotka estävät commitin tai deploymentin etenemisen, jos konfiguraatio ei vastaa hyväksyttyjä politiikoita. Näin tietoturva- ja sääntelyvaatimukset toteutuvat “shift-left”-periaatteella, ennen kuin resursseja tai sovelluksia julkaistaan.
 
-Compliance-as-Code on menetelmä, jossa sääntelyvaatimukset ja organisaation sisäiset turvallisuusstandardit mallinnetaan ohjelmallisesti konfiguraatioina, jotka voidaan tarkistaa automaattisesti osana infrastruktuurin ja sovellusten elinkaarta. GDC Air-Gapped -ympäristössä tämä lähestymistapa tukee jatkuvaa vaatimustenmukaisuutta ilman ulkoisia riippuvuuksia, mikä on erityisen tärkeää eristetyissä ja säädellyissä käyttöympäristöissä.
+CSPM (Cloud Security Posture Management) toimii taustakerroksena, joka analysoi IaC-malleja, konfiguraatioita ja politiikkatoteumia kokonaisuutena. Se tunnistaa poikkeamat, seuraa muutoksia ja mahdollistaa jatkuvan riskienhallinnan air-gapped-ympäristössä. On käytännössä realiaikainen raportti ympäristön vaatimustenmukaisuuteen ja tietoturvan tilaan.
 
-Menetelmä perustuu siihen, että vaatimukset – esimerkiksi ISO 27001:n, NIST SP 800-53:n tai SOC II:n mukaiset kontrollit – kuvataan koneellisesti luettavassa muodossa, kuten YAML- tai JSON-tiedostoina. Näitä sääntöjä voidaan soveltaa infrastruktuurin määrittelyyn (IaC), käyttöoikeuspolitiikkoihin, auditointikonfiguraatioihin ja sovelluskohtaisiin asetuksiin. Compliance-as-Code mahdollistaa politiikkojen automaattisen validoinnin esimerkiksi CI/CD-putkessa, jolloin virheelliset tai puutteelliset konfiguraatiot voidaan estää ennen käyttöönottoa.
-GDC AG -ympäristössä Compliance-as-Code voidaan toteuttaa esimerkiksi seuraavilla tavoilla:
-- OPA Gatekeeperin avulla voidaan enforce-tyyppisesti valvoa, että resurssit noudattavat vaadittuja sääntöjä.
-- Sovelluskuvien skannaus voidaan konfiguroida tarkistamaan, että ne eivät sisällä tunnettuja haavoittuvuuksia tai rikko sääntelyvaatimuksia.
-- VM-imaget voidaan validoida kovennusprosessin jälkeen automaattisesti, varmistaen että ne täyttävät organisaation turvallisuusvaatimukset ennen käyttöönottoa.
-- Auditointilokit ja käyttöoikeuspolitiikat voidaan konfiguroida osana IaC-malleja, jolloin ne ovat osa infrastruktuurin määrittelyä eikä erillinen vaihe.
+### 5.7.2 Salaus, avainhallinta, PKI
+GDC Air-Gapped -ympäristön salaus- ja avainhallintamalli perustuu monikerroksiseen suojausperiaatteeseen, jossa kaikki data on oletusarvoisesti salattu sekä levossa (at rest) että siirrossa (in transit). Salausmekanismit ovat erillisiä mutta toisiaan täydentäviä infrastruktuuri-, verkko- ja sovellustasoilla.
 
-Compliance-as-Code tukee myös dokumentaation automatisointia: jokainen julkaisu, konfiguraatiomuutos tai resurssin käyttöönotto voidaan liittää auditointitietoon, joka toimii todisteena vaatimustenmukaisuudesta. Tämä on erityisen arvokasta ympäristöissä, joissa ulkoinen auditointi on rajattua tai tapahtuu harvoin.
+#### 5.7.2.1 HSM ja KMS
+Avainhallinta toteutetaan GDC:n sisäisellä Key Management Service (KMS) -ratkaisulla, joka tarjoaa keskitetyn hallinnan, rotaation ja käyttöoikeusvalvonnan. KMS integroituu Hardware Security Module (HSM) -laitteisiin, jotka täyttävät FIPS 140-2/3 -vaatimukset ja varmistavat avainten laitteistopohjaisen suojauksen. Avainten käyttö, luonti ja tuonti tapahtuvat air-gapped-prosessissa, eikä avainmateriaalia koskaan viedä ulos ympäristöstä.
 
-### 5.7.2 Salaus, avainhallinta ja varmistus
+Kaikki GDC-komponentit – mukaan lukien tallennus, metatiedot ja lokit – hyödyntävät vahvoja salaustoteutuksia, kuten AES-256 ja TLS 1.3. Lisäksi asiakasorganisaatiot voivat määrittää omat asiakasavaimet (Customer-Managed Keys, CMEK), mikä mahdollistaa avainten hallinnan täyden suvereniteetin.
+
+Organisaatiot voivat siis käyttää joko GDC:n hallinnoimia tai omia (CMEK) avaimiaan; molemmat hallitaan KMS:n kautta, mutta CMEK:t säilyttävät avainmateriaalin täyden hallinnan asiakkaalla.
+
+#### 5.7.2.2 PKI
+GDC Air-Gapped sisältää sisäänrakennetun PKI-arkkitehtuurin, joka mahdollistaa sertifikaattien hallinnan ja turvallisen TLS-viestinnän täysin eristetyssä ympäristössä. Ratkaisu tukee useita käyttömalleja: Fully-Managed, Bring Your Own Certificates, BYO with ACME sekä BYO with SubCA.
+
+Sertifikaatteja hallitaan Kubernetes-resursseina (Certificate, CertificateIssuer, CertificateRequest), ja niiden luonti, allekirjoitus ja jakelu tapahtuu GDC:n sisäisen PKI Security API:n kautta (pki.security.gdc.goog/v1). Myönnetyt sertifikaatit tallennetaan Kubernetes Secrets -resursseihin, joita sovellukset voivat hyödyntää suoraan esimerkiksi ingress-palveluissa.
+
+PKI-infrastruktuuri tukee Hardware Security Module (HSM) -laitteita avainten suojaamiseen ja toimii kokonaan air-gapped-prosessina ilman ulkoisia riippuvuuksia. Sertifikaattien elinkaari (luonti, uusiminen, rotaatio ja peruutus) on hallittavissa API-rajapinnan kautta, ja kaikki tapahtumat auditoidaan GDC:n sisäisessä loki-infrastruktuurissa.
+
 ### 5.7.3 DevSecOps & CI/CD air-gapped-ympäristössä
+GDC Air-Gapped -alusta tukee täysimittaisesti DevSecOps-mallia, jossa kehitys, tietoturva ja operointi yhdistyvät yhdeksi todennettavaksi prosessiksi. Kaikki CI/CD-toiminnot tapahtuvat eristetyssä verkossa ilman ulkoisia riippuvuuksia, ja tietoturva sisältyy automaattisesti kaikkiin vaiheisiin.
+
+Infrastruktuuria hallitaan API-rajapintojen kautta käyttäen Terraformia, kubectl- ja gdcloud CLI -työkaluja. CI/CD voidaan toteuttaa GitLab Marketplace -ratkaisulla, joka toimii koodivarastona, pipeline-moottorina ja tehtävienhallintana.
+
+Rakennus- ja julkaisuprosessit hyödyntävät ennakkoon hyväksyttyjä ja allekirjoitettuja base imageja, joiden eheys varmistetaan KMS/HSM-allekirjoituksilla. Pipelinessa suoritetaan automaattisesti haavoittuvuusskannaus, SBOM-generointi ja Policy-as-Code-validointi, jotka estävät virheellisten muutosten etenemisen tuotantoon.
+
+Julkaisuvaiheessa resurssit viedään hallittuihin Kubernetes-klustereihin tai virtuaalikoneisiin roolipohjaisesti ja auditoidusti. Kaikki pipeline-tapahtumat ovat jäljitettävissä ja kytkeytyvät Compliance-as-Code -raportointiin.
+
 ## 5.8 Tietoturvavalvonta ja SOC-integraatiot
+GDC Air-Gapped -alusta sisältää sisäisen Logging Platform -ratkaisun (Loki, Prometheus, Grafana), jota voidaan hyödyntää tietoturvavalvontaan ja poikkeamien havaitsemiseen. Lokit kattavat infrastruktuurin, klusterit, sovellukset ja käyttäjätoiminnan, ja ne kerätään Fluent Bit -agenttien avulla keskitetysti.
+
+Laajempaa näkyvyyttä varten ympäristöön voidaan rakentaa erillinen SOC-alusta, joka kokoaa ja analysoi tiedon useista lähteistä. Tämä sisältää:
+
+haavoittuvuusskannerien (esim. Nessus, Trivy) tulokset
+
+runtime-suojauksen ja EDR-agenttien havainnot
+
+Control Plane -API-lokit ja audit-lokit
+
+Managed-palveluiden tuottamat tietoturva- ja käyttölogit
+
+SOC-alusta toimii tiedon korrelaatiokerroksena, joka yhdistää eri lähteiden tapahtumat kokonaisvaltaiseksi uhkakuvaksi. Tietoa rikastetaan kontekstilla, kuten projektilla, klusterilla ja käyttäjätunnisteilla, mikä tukee nopeaa analyysia ja priorisointia.
+
+Valvontaa tukevat automatisoidut hälytykset ja dashboardit, jotka seuraavat järjestelmän eheyteen, poikkeaviin kirjautumisiin, epäonnistuneisiin Policy-as-Code -tarkistuksiin ja CI/CD-putkien poikkeamiin liittyviä tapahtumia.
+
+Yhdistettynä tämä muodostaa kokonaisvaltaisen valvontamallin, jossa infrastruktuurin, sovellusten ja kehitysprosessien tietoturva nähdään yhtenä ekosysteeminä — mahdollistaen sekä reaaliaikaisen reagoinnin että jatkuvan parantamisen.
