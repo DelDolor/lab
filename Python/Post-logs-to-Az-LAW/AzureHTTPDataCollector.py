@@ -38,7 +38,7 @@ log_type = 'WebMonitorTest'
 # An example JSON web monitor object
 json_data = [{
    "slot_ID": 12345,
-    "ID": "5cdad72f-c848-4df0-8aaa-ffe033e75d57",
+    "ID": "5cdad72f-ABCD-4df0-8aaa-ffe033e75d57",
     "availability_Value": 100,
     "performance_Value": 6.954,
     "measurement_Name": "last_one_hour",
@@ -49,7 +49,7 @@ json_data = [{
 },
 {   
     "slot_ID": 67890,
-    "ID": "b6bee458-fb65-492e-996d-61c4d7fbb942",
+    "ID": "b6bee458-ABCD-492e-996d-61c4d7fbb942",
     "availability_Value": 100,
     "performance_Value": 3.379,
     "measurement_Name": "last_one_hour",

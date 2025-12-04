@@ -15,7 +15,7 @@
             "apiVersion": "2023-12-01-preview",
             "properties": {
                 "displayName": "XDR Preview feature enabled",
-                "description": "Joku on aktivoinut yhden tai useamman preview-featuren. Preview ominaisuuksien käyttö tuotannossa ei ole sallittua.",
+                "description": "Joku on aktivoinut yhden tai useamman preview-featuren.",
                 "severity": "Medium",
                 "enabled": true,
                 "query": "CloudAppEvents\r\n| extend RawEventData_Workload = parse_json(RawEventData)[\"Workload\"]\r\n| extend RawEventData_SettingName = parse_json(RawEventData)[\"SettingName\"]\r\n| extend RawEventData_SettingsNewValue = parse_json(RawEventData)[\"SettingsNewValue\"]\r\n| where RawEventData_SettingName contains \"Preview features\"\r\n| where RawEventData_SettingsNewValue != \"False\"\r\n| project-reorder Timestamp, AccountDisplayName, RawEventData_SettingName, RawEventData_SettingsNewValue",

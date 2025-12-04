@@ -1,0 +1,113 @@
+# Upload Semgrep results to DefectDojo
+security:defectdojo-upload:
+  stage: security
+  image: python:3.11-slim
+  needs:
+    - job: semgrep
+      artifacts: true
+      optional: true
+    - job: semgrep-pro
+      artifacts: true
+      optional: true
+  before_script:
+    - pip install --upgrade pip
+    - pip install requests
+  script:
+    - echo "Uploading Semgrep results to DefectDojo..."
+    - |
+      if [ -z "$DEFECTDOJO_URL" ] || [ -z "$DEFECTDOJO_TOKEN" ]; then
+        echo "⚠️ DefectDojo credentials not configured. Skipping upload."
+        echo "Please set DEFECTDOJO_URL and DEFECTDOJO_TOKEN in CI/CD variables."
+        exit 0
+      fi
+
+      # Check if Semgrep SARIF report exists
+      if [ ! -f "reports/semgrep-sast.sarif" ]; then
+        echo "⚠️ Semgrep report (reports/semgrep-sast.sarif) not found. Skipping upload."
+        exit 0
+      fi
+
+      # Set defaults for DefectDojo and export for Python
+      export PRODUCT_NAME="${DEFECTDOJO_PRODUCT_NAME:-${CI_PROJECT_NAME}}"
+      export ENGAGEMENT_NAME="${DEFECTDOJO_ENGAGEMENT_NAME:-Main Branch Security Scan}"
+
+      echo "📦 Product:" $PRODUCT_NAME
+      echo "🎯 Engagement:" $ENGAGEMENT_NAME
+
+      # Upload to DefectDojo using their API
+      python3 << 'EOF'
+      import requests
+      import os
+      import sys
+      from datetime import datetime
+
+      url = os.environ.get('DEFECTDOJO_URL').rstrip('/')
+      token = os.environ.get('DEFECTDOJO_TOKEN')
+      product_name = os.environ.get('PRODUCT_NAME')
+      engagement_name = os.environ.get('ENGAGEMENT_NAME')
+
+      headers = {
+          'Authorization': f'Token {token}'
+      }
+
+      # Upload the Semgrep SARIF report using import-scan endpoint
+      upload_url = f'{url}/api/v2/import-scan/'
+
+      print(f"🔗 Uploading to: {upload_url}")
+
+      try:
+          with open('reports/semgrep-sast.sarif', 'rb') as f:
+              data = {
+                  'product_name': product_name,
+                  'engagement_name': engagement_name,
+                  'scan_type': 'SARIF',
+                  'verified': 'true',
+                  'active': 'true',
+                  'minimum_severity': 'Info',
+                  'close_old_findings': 'false',
+                  'scan_date': datetime.now().strftime('%Y-%m-%d'),
+                  'tags': f"gitlab,semgrep,branch:{os.environ.get('CI_COMMIT_REF_NAME', 'unknown')}"
+              }
+
+              files = {
+                  'file': ('semgrep-sast.sarif', f, 'application/sarif+json')
+              }
+
+              # Set reasonable timeout (30 seconds connect, 120 seconds read)
+              response = requests.post(
+                  upload_url, 
+                  headers=headers, 
+                  data=data, 
+                  files=files,
+                  timeout=(30, 120)
+              )
+
+              if response.status_code in [200, 201]:
+                  print(f"✅ Successfully uploaded Semgrep results to DefectDojo")
+                  result = response.json()
+                  print(f"Response: {result}")
+                  sys.exit(0)
+              else:
+                  print(f"❌ Failed to upload to DefectDojo. Status: {response.status_code}")
+                  print(f"Response: {response.text}")
+                  sys.exit(1)
+
+      except requests.exceptions.ConnectTimeout:
+          print(f"⚠️ Connection timeout to DefectDojo ({url})")
+          print("This might be a network/firewall issue. Check if DefectDojo is accessible from CI runner.")
+          sys.exit(1)
+      except requests.exceptions.ReadTimeout:
+          print(f"⚠️ Read timeout from DefectDojo - the server is taking too long to respond")
+          sys.exit(1)
+      except requests.exceptions.RequestException as e:
+          print(f"⚠️ Network error uploading to DefectDojo: {e}")
+          sys.exit(1)
+      except Exception as e:
+          print(f"❌ Unexpected error: {e}")
+          sys.exit(1)
+      EOF
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+  allow_failure: true
+ 

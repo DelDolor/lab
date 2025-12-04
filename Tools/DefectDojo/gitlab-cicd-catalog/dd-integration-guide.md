@@ -1,4 +1,5 @@
 # DefectDojo GitLab CI/CD Integration - Käyttöohje
+Mostly AI Generated so be carefull when using!
 
 ## Pika-aloitus (5 min)
 
@@ -6,7 +7,7 @@
 
 ```bash
 # Kirjaudu DefectDojoon
-https://ddd.hunajapurkki.fi
+https://ddd.domain.fi
 
 # Navigate to: [Profiili] → API Key
 # Kopioi avain talteen

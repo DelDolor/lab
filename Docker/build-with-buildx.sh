@@ -24,7 +24,7 @@ trivy image --scanners vuln,secret,config,license --input image.tar
 
 
 # Työnnä rekkariin
-docker buildx build --push -t 3283....ecr.eu-north-1.amazonaws.com/valtcyb/dev-cicd-repo:valt-cyber-base-1.0.0 .
+docker buildx build --push -t 3283....ecr.eu-north-1.amazonaws.com/rekkari/dev-cicd-repo:yyber-base-1.0.0 .
 
 # testaa lokaalisti
-docker run --rm -it valt-cyber-base:1.0.0 bash
+docker run --rm -it yyber-base:1.0.0 bash
